@@ -40,9 +40,10 @@ class Images:
 
 class Signals:
     """A class containing the socket signals used in the UI."""
-    UPDATE_COLORS = f"AUI_UPDATE_COLORS__V{AdaptiveUIInfo.VERSION}"
-    INFO_POPUP = f"AUI_INFO_POPUP__V{AdaptiveUIInfo.VERSION}"
-    ERROR_OCCURRED = f"AUI_ERROR_OCCURRED__V{AdaptiveUIInfo.VERSION}"
+    UPDATE_COLORS = f"AUI_UPDATE_COLORS"
+    INFO_POPUP = f"AUI_INFO_POPUP"
+    ERROR_OCCURRED = f"AUI_ERROR_OCCURRED"
+
 
 def dpi_fix():
     """Fixes the DPI scaling issue on Windows on High DPI devices."""
@@ -664,9 +665,9 @@ class UserInterface:
             Signals.UPDATE_COLORS: (self._handle_signal_ls, {"selected_colorpalette": None, "dark_mode": None, "bg": None, "fg": None}),
             Signals.INFO_POPUP: (self.info, {"message": ""}),
             Signals.ERROR_OCCURRED: (self._socket_error_detected, {"message": ""})
-        })
+        }, requires={"version": AdaptiveUIInfo.VERSION})
         self.socket_server.attach_metadata(self._gen_socket_metadata)
-        self.socket_client = SocketClient()
+        self.socket_client = SocketClient(requires={"version": AdaptiveUIInfo.VERSION})
 
         self._color_palette_history_window = False
         self.running = False
