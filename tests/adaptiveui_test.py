@@ -10,17 +10,17 @@ def main():
     manager.mount_ui_rc_menu()
     label = ui.Tools.text(
         "To test AdaptiveUI, use the right-click menu.",
-        window=manager._window,
+        window=manager.frame,
         font=("Segoe UI", 22),
     )
     label.pack(fill="both", padx=8)
     manager.ui_right_click.add_separator()
     manager.ui_right_click.add_command(label="Remove Help text", command=label.destroy)
 
-    scrollbar = ui.ttk.Scrollbar(manager._window)
+    scrollbar = ui.ttk.Scrollbar(manager.frame)
     scrollbar.pack(side=ui.tk.RIGHT, fill=ui.tk.Y)
 
-    label2 = ui.Tools.text(get_story(), window=manager._window, markdown=True)
+    label2 = ui.Tools.text(get_story(), window=manager.frame, markdown=True)
     label2["yscrollcommand"] = scrollbar.set
     label2.bind("<ButtonPress-1>", lambda _: "break")
     label2.pack(fill="both", expand=True, padx=8)
