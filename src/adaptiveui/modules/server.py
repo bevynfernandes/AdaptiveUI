@@ -87,6 +87,17 @@ class SocketServer:
         """
         self._extra_metadata.append(function)
 
+    def add_signal(self, signal: str, function, function_params: dict):
+        """
+        Adds a signal to the server.
+
+        Args:
+            signal (str): The signal to add.
+            function: The function to call when the signal is received.
+            function_params (dict): The parameters to pass to the function.
+        """
+        self.signals[signal] = (function, function_params)
+
     def _get_metadata(self, request_id: str = None):
         """
         Retrieves the metadata for a request.
@@ -189,7 +200,9 @@ class SocketServer:
         params: dict = {},
         request_id: str = None,
     ):
-        data = {"signal": signal, "params": params} | {"__socket_metadata": self._get_metadata(request_id)}
+        data = {"signal": signal, "params": params} | {
+            "__socket_metadata": self._get_metadata(request_id)
+        }
         if sys.getsizeof(data) > COMPERSSION_THRESHOLD:
             data["__socket_metadata"]["compressed"] = True
             data = zlib.compress(json.dumps(data).encode())
