@@ -397,7 +397,6 @@ class Tools:
         bind_return: bool = True,
     ) -> ttk.Button:
         btn = ttk.Button(window, text=label, command=command, style=AdaptiveUIConfigs.BUTTON_TYPE)
-        btn.pack(pady=pady)
         if bind_return:
             btn.bind("<Return>", lambda _: command())
         if ret:
@@ -657,8 +656,10 @@ class UserInterface:
         self._reset__temp_data()
         
         self._window = self._create_window(window_name, center, size, icon, resizable)
+        
         self.set_theme(self._dark_mode)
         self.frame = SharedFrame(self._window)
+        self.frame._apack()
         self.style_manager = StyleManager()
 
         self.socket_server = SocketServer({
@@ -1154,6 +1155,7 @@ class UserInterface:
         window = tk.Toplevel(is_toplevel) if is_toplevel else FaultTolerantTk()
         window.title(title)
         window.iconphoto(False, tk.PhotoImage(file=icon))
+        window.attributes("-alpha", 0.95)
         dpi_fix()
         if center:
             Tools.center_window(window, size, False)
