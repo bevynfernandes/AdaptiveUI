@@ -1,15 +1,26 @@
+"""
+Underlying socket server and client classes for communication between the server and the client.
+Listen for incoming connections and handle them accordingly.
+Licensed under the GPL v3 License. For more, see the LICENSE file.
+Author: EpicGamerCodes
+"""
+
 import json
+import os
 import socket
+import sys
 import threading
+import time
 import uuid
 import zlib
 from datetime import datetime
-from random import randint
 
 from .config import BuildConfigs
 from .log import logger
+from .utils import dict_compare
 
-INSTANCE_ID = randint(0, 100000)
+INSTANCE_ID = f"{os.getpid()}_{time.time()}"
+COMPERSSION_THRESHOLD = 1024
 
 
 class InternalSignals:
@@ -27,17 +38,6 @@ def generate_metadata(request_id: str = None) -> dict:
         "timestamp": datetime.now().isoformat(),
         "request_id": request_id if request_id is not None else str(uuid.uuid4()),
     }
-
-
-def dict_compare(d1: dict, d2: dict):
-    d1_keys = set(d1.keys())
-    d2_keys = set(d2.keys())
-    shared_keys = d1_keys & d2_keys
-    added = d1_keys - d2_keys
-    removed = d2_keys - d1_keys
-    modified = {o: (d1[o], d2[o]) for o in shared_keys if d1[o] != d2[o]}
-    same = shared_keys - modified.keys()
-    return added, removed, modified, same
 
 
 class SocketServer:
@@ -98,10 +98,11 @@ class SocketServer:
             dict: The metadata for the request.
         """
         metadata = generate_metadata(request_id)
-        metadata["attached"] = {}
+        attached = {}
         for func in self._extra_metadata:
-            metadata["attached"].update(func())
-        return metadata
+            attached.update(func())
+        result = {**metadata, "attached": attached}
+        return result
 
     def handle_client(self, conn: socket.socket, addr: str):
         """
@@ -117,8 +118,12 @@ class SocketServer:
         try:
             logger.debug(f"Connected to {addr}...")
             compressed_data = conn.recv(1024)
-            # Decompress the data after receiving
-            data: dict = json.loads(zlib.decompress(compressed_data).decode())
+            try:
+                # Try to decompress and parse the data
+                data: dict = json.loads(zlib.decompress(compressed_data).decode())
+            except zlib.error:
+                # If that fails, assume the data is not compressed
+                data: dict = json.loads(compressed_data.decode())
             signal: str = data.get("signal")
             params: dict = data.get("params")
             logger.debug(f"Received signal: {signal}")
@@ -184,23 +189,14 @@ class SocketServer:
         params: dict = {},
         request_id: str = None,
     ):
-        """
-        Sends a signal to the client.
-
-        Args:
-            conn (socket.socket): The client socket connection.
-            signal (str): The signal to send.
-            params (dict): The parameters to include in the signal.
-            request_id (str): The ID of the request.
-        """
-        # Compress the data before sending
-        compressed_data = zlib.compress(
-            json.dumps(
-                {"signal": signal, "params": params}
-                | {"__socket_metadata": self._get_metadata(request_id)}
-            ).encode()
-        )
-        conn.sendall(compressed_data)
+        data = {"signal": signal, "params": params} | {"__socket_metadata": self._get_metadata(request_id)}
+        if sys.getsizeof(data) > COMPERSSION_THRESHOLD:
+            data["__socket_metadata"]["compressed"] = True
+            data = zlib.compress(json.dumps(data).encode())
+        else:
+            data["__socket_metadata"]["compressed"] = False
+            data = json.dumps(data).encode()
+        conn.sendall(data)
 
     def receive(self):
         """
@@ -262,7 +258,12 @@ class SocketClient:
         """
         try:
             compressed_data = s.recv(1024)
-            data: dict = json.loads(zlib.decompress(compressed_data).decode())
+            try:
+                # Try to decompress and parse the data
+                data: dict = json.loads(zlib.decompress(compressed_data).decode())
+            except zlib.error:
+                # If that fails, assume the data is not compressed
+                data: dict = json.loads(compressed_data.decode())
             logger.debug(f"Response from server: {data.get('message', data)}")
         finally:
             s.close()
@@ -297,30 +298,22 @@ class SocketClient:
     def send(
         self, signal: str, params: dict = {}, wait_for_response: bool = True
     ) -> dict:
-        """
-        Sends a signal to the server with optional parameters and waits for a response.
-
-        Args:
-            signal (str): The signal to be sent to the server.
-            params (dict): Optional parameters to be sent along with the signal. Defaults to an empty dictionary.
-            wait_for_response (bool): Whether to wait for a response from the server. Defaults to True.
-
-        Returns:
-            dict: The response data received from the server, if wait_for_response is True. Otherwise, returns None.
-
-        """
         params["__socket_metadata"] = generate_metadata()
         params["__socket_requires"] = self.requires
+
+        data = json.dumps({"signal": signal, "params": params})
+        if sys.getsizeof(data) > COMPERSSION_THRESHOLD:
+            data = zlib.compress(data.encode())
+            params["__socket_metadata"]["compressed"] = True
+        else:
+            data = data.encode()
+            params["__socket_metadata"]["compressed"] = False
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             s.settimeout(10.0)
             s.connect((self.host, self.port))
-            # Compress the data before sending
-            compressed_data = zlib.compress(
-                json.dumps({"signal": signal, "params": params}).encode()
-            )
-            s.sendall(compressed_data)
+            s.sendall(data)
             if wait_for_response:
                 return self._receive_data(s)
             else:

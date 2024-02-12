@@ -24,6 +24,17 @@ TMP_PATH = (
 creationflags = 0x08000000 if os.name == "nt" else 0
 
 
+def dict_compare(d1: dict, d2: dict):
+    d1_keys = set(d1.keys())
+    d2_keys = set(d2.keys())
+    shared_keys = d1_keys & d2_keys
+    added = d1_keys - d2_keys
+    removed = d2_keys - d1_keys
+    modified = {o: (d1[o], d2[o]) for o in shared_keys if d1[o] != d2[o]}
+    same = shared_keys - modified.keys()
+    return added, removed, modified, same
+
+
 def mkdir(path: str):
     """
     Create a directory at the specified path if it doesn't already exist.
