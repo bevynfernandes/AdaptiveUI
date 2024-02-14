@@ -23,7 +23,7 @@ from .modules.server import SocketClient, SocketServer
 from .modules.utils import SEPARATOR, resource_path
 
 DPI_FIX_DONE = False
-FaultTolerantTk = tk.Tk
+CustomTk = tk.Tk # Allows the user to use their own Tk class
 
 class AdaptiveUIInfo:
     VERSION = "1.2.0"
@@ -149,7 +149,7 @@ def set_rc_menu(rc_menu: tk.Menu, items: list[tuple[str]]):
         else:
             rc_menu.add_command(label=label, command=command, background=ColorPalette.bg, foreground=ColorPalette.fg, activebackground=darken_color(ColorPalette.bg), activeforeground=lighten_color(ColorPalette.fg))
 
-def color_title_bar(window: FaultTolerantTk, dark: bool = True):
+def color_title_bar(window: CustomTk, dark: bool = True):
     """
     Sets the color of the title bar of the specified window to dark or light.
 
@@ -316,8 +316,8 @@ class StyleManager:
 class Tools:
     @staticmethod
     def center_window(
-        window: FaultTolerantTk | tk.Toplevel, size: list = None, simple: bool = True
-    ) -> FaultTolerantTk | tk.Toplevel:
+        window: CustomTk | tk.Toplevel, size: list = None, simple: bool = True
+    ) -> CustomTk | tk.Toplevel:
         """
         Centers the specified window on the screen.
 
@@ -368,7 +368,7 @@ class Tools:
         width: int = 40,
         font: tuple = (Configs.FONT, Configs.FONT_SIZE[0]),
         borderwidth: int = 0,
-        window: FaultTolerantTk | tk.Toplevel = None,
+        window: CustomTk | tk.Toplevel = None,
         markdown: bool = False,
     ) -> tk.Text:
         """
@@ -414,7 +414,7 @@ class Tools:
         label: str,
         command,
         ret: bool = False,
-        window: FaultTolerantTk | tk.Toplevel = False,
+        window: CustomTk | tk.Toplevel = False,
         pady=0,
         bind_return: bool = True,
     ) -> ttk.Button:
@@ -448,7 +448,7 @@ class SharedFrame(ttk.Frame):
         loading: Displays a loading screen.
 
     """
-    def __init__(self, parent: FaultTolerantTk, *args, **kwargs):
+    def __init__(self, parent: CustomTk, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.text = tk.StringVar()
         self.notice = tk.StringVar()
@@ -502,7 +502,7 @@ class SharedFrame(ttk.Frame):
 class _Info:
     def __init__(
         self,
-        window: FaultTolerantTk | SharedFrame,
+        window: CustomTk | SharedFrame,
         text: str | StringIO,
         title: str = BuildConfigs.NAME,
         notice: str = "",
@@ -659,9 +659,9 @@ class UserInterface:
     _dark_mode: bool = LocalSettings.read().dark_mode
     
     def __init__(self, window_name: str, size: tuple[int, int] = None, center: bool = True, resizable: bool = False, icon: str = Images.ICON):
-        global excepthook, FaultTolerantTk
+        global excepthook, CustomTk
 
-        class FaultTolerantTk(tk.Tk):
+        class CustomTk(tk.Tk):
             @classmethod
             def report_callback_exception(cls, exc: BaseException, val: BaseException, tb):
                 self._custom_traceback(exc, val, tb)
@@ -900,7 +900,7 @@ class UserInterface:
         if not skip_window:
             self._window.configure(background=bg_color)
 
-        if isinstance(container, (FaultTolerantTk, tk.Toplevel)):
+        if isinstance(container, (CustomTk, tk.Toplevel)):
             container.configure(background=bg_color)
             if bg_color is not None:
                 container.option_add("*Background", bg_color)
@@ -1169,11 +1169,11 @@ class UserInterface:
         size: tuple[int, int] | str = None,
         icon: str = Images.ICON,
         resizable: bool = False,
-        is_toplevel: FaultTolerantTk = False,
-    ) -> FaultTolerantTk | tk.Toplevel:
+        is_toplevel: CustomTk = False,
+    ) -> CustomTk | tk.Toplevel:
         if size is None:
             size = [400, 200]
-        window = tk.Toplevel(is_toplevel) if is_toplevel else FaultTolerantTk()
+        window = tk.Toplevel(is_toplevel) if is_toplevel else CustomTk()
         window.title(title)
         if icon is not Images.ICON and is_toplevel:
             icon = overlay_image(Images.ICON, icon)
