@@ -29,7 +29,7 @@ class InternalSignals:
     ERROR_REQUIREMENTS_MISMATCH = "__error_requirements_mismatch"
     SUCCESS_SIGNAL_PROCESSED = "__success_signal_processed"
     FETCH_SOCKET_METADATA = "__fetch_socket_metadata"
-    TIMEOUT = "__timeout"
+    RESPONSE_TIMEOUT = "__timeout"
 
 
 def generate_metadata(request_id: str = None) -> dict:
@@ -281,7 +281,7 @@ class SocketClient:
             logger.debug(f"Response from server: {data.get('message', data)}")
         except TimeoutError:
             data = {
-                "signal": InternalSignals.TIMEOUT,
+                "signal": InternalSignals.RESPONSE_TIMEOUT,
                 "params": {
                     "message": "A timeout occurred while waiting for a response"
                 },
@@ -309,7 +309,7 @@ class SocketClient:
             InternalSignals.ERROR_SIGNAL_NOT_FOUND: logger.error,
             InternalSignals.ERROR_REQUIREMENTS_MISMATCH: logger.error,
             InternalSignals.SUCCESS_SIGNAL_PROCESSED: logger.debug,
-            InternalSignals.TIMEOUT: logger.error,
+            InternalSignals.RESPONSE_TIMEOUT: logger.error,
         }
 
         log_func = signal_log_map.get(signal, logger.info)
