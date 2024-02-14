@@ -26,7 +26,7 @@ DPI_FIX_DONE = False
 FaultTolerantTk = tk.Tk
 
 class AdaptiveUIInfo:
-    VERSION = "1.1.0"
+    VERSION = "1.2.0"
     AUTHOR = "EpicGamerCodes"
     LICENSE = "GPL v3"
 
@@ -96,6 +96,28 @@ def darken_color(color: str, factor=0.75) -> str:
         str: The darkened color in hex format.
     """
     return _adjust_color_brightness(color, factor)
+
+def overlay_image(original_img: str, overlay_img: str) -> ImageTk.PhotoImage:
+    logger.debug(f"Overlaying '{overlay_img.split("/")[-1]}' on '{original_img.split("/")[-1]}'...")
+    img = Image.open(original_img)
+    overlay = Image.open(overlay_img)
+
+    # Ensure overlay image has an alpha channel
+    if overlay.mode != 'RGBA':
+        overlay = overlay.convert('RGBA')
+
+    # Check if overlay image is larger than original image
+    if overlay.width >= img.width or overlay.height >= img.height:
+        logger.debug("Overlay image is larger or the same size as the original image, resizing...")
+        # Resize overlay image to be half the size of the original image
+        overlay = overlay.resize((img.width // 2, img.height // 2))
+
+    # Calculate the position for the overlay image
+    position = (img.width - overlay.width, img.height - overlay.height)
+
+    # Use the alpha channel of the overlay image as the mask
+    img.paste(overlay, position, overlay)
+    return ImageTk.PhotoImage(img)
 
 def lighten_color(color: str, factor=1.75) -> str:
     """
@@ -553,7 +575,7 @@ class _Info:
             elif self.add_image:
                 size = (400, 270)
             popup = UserInterface._create_window(
-                self.title, center=True, is_toplevel=self.window, size=size, resizable=True
+                self.title, center=True, is_toplevel=self.window, size=size, resizable=True, icon=self.add_image if self.add_image else Images.ICON
             )
             popup.bind("<Escape>", lambda _: popup.destroy())
         else:
@@ -693,7 +715,6 @@ class UserInterface:
         self.loading = self.frame.loading
     
     def _custom_traceback(self, exc: BaseException, val: BaseException, tb):
-        print("Custom traceback called")  # Add this line
         logger.exception(exc)
         Thread(target=lambda: self.socket_client.send(Signals.ERROR_OCCURRED, {"message": f"{repr(exc)}: {val}"})).start()
     
@@ -1154,7 +1175,11 @@ class UserInterface:
             size = [400, 200]
         window = tk.Toplevel(is_toplevel) if is_toplevel else FaultTolerantTk()
         window.title(title)
-        window.iconphoto(False, tk.PhotoImage(file=icon))
+        if icon is not Images.ICON and is_toplevel:
+            icon = overlay_image(Images.ICON, icon)
+        else:
+            icon = tk.PhotoImage(file=icon)
+        window.iconphoto(False, icon)
         window.attributes("-alpha", 0.95)
         dpi_fix()
         if center:
