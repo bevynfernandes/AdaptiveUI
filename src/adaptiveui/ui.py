@@ -43,6 +43,8 @@ class Signals:
     UPDATE_COLORS = f"AUI_UPDATE_COLORS"
     INFO_POPUP = f"AUI_INFO_POPUP"
     ERROR_OCCURRED = f"AUI_ERROR_OCCURRED"
+    LOCK_UI = f"AUI_LOCK_UI"
+    UNLOCK_UI = f"AUI_UNLOCK_UI"
 
 
 def dpi_fix():
@@ -687,7 +689,9 @@ class UserInterface:
         self.socket_server = SocketServer({
             Signals.UPDATE_COLORS: (self._handle_signal_ls, {"selected_colorpalette": None, "dark_mode": None, "bg": None, "fg": None}),
             Signals.INFO_POPUP: (self.info, {"message": ""}),
-            Signals.ERROR_OCCURRED: (self._socket_error_detected, {"message": ""})
+            Signals.ERROR_OCCURRED: (self._socket_error_detected, {"message": ""}),
+            Signals.LOCK_UI: (self.grab_test, {}),
+            Signals.UNLOCK_UI: (lambda: self.__temp_data["open_info_windows"][-1].popup.destroy(), {})
         }, requires={"version": AdaptiveUIInfo.VERSION})
         self.socket_server.attach_metadata(self._gen_socket_metadata)
         self.socket_client = SocketClient(requires={"version": AdaptiveUIInfo.VERSION})
@@ -1009,6 +1013,8 @@ class UserInterface:
             SEPARATOR,
             ("View Connected Socket Info", lambda: self.info(pformat(self.socket_client.get_server_info()), "AdaptiveUI Socket Info")),
             ("Info Popup over Socket", lambda: self.socket_client.send(Signals.INFO_POPUP, {"message": "Hello, World!"}, False)),
+            ("Lock UI over Socket", lambda: self.socket_client.send(Signals.LOCK_UI, wait_for_response=False)),
+            ("Unlock UI over Socket", lambda: self.socket_client.send(Signals.UNLOCK_UI, wait_for_response=False)),
             SEPARATOR,
             (
                 "Critical Crash via Menu",
