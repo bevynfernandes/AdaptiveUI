@@ -8,7 +8,7 @@ def get_story(orginal: bool = False) -> str:
     with open(f"data/story/{"story.md" if not orginal else "orginal.md"}", "r") as f:
         return f.read()
 
-def remove_help_text(label: ui.tk.Text, label2: ui.tk.Text, scrollbar: ui.ttk.Scrollbar, ui_right_click: ui.tk.Menu) -> None:
+def remove_help_text(label: ui.tk.Text, label2: ui.tk.Text, scrollbar: ui.ttk.Scrollbar) -> None:
     label.destroy()
     label2.pack(fill="both", expand=True, padx=8, pady=8)
     scrollbar.pack(side=ui.tk.RIGHT, fill=ui.tk.Y, pady=8)
@@ -35,7 +35,7 @@ def main():
 
     if HELP_TEXT_ENABLED:
         manager.ui_right_click.add_separator()
-        manager.ui_right_click.add_command(label="Remove Help text", command=lambda: remove_help_text(label, label2, scrollbar, manager.ui_right_click))
+        manager.ui_right_click.add_command(label="Remove Help text", command=lambda: remove_help_text(label, label2, scrollbar))
     manager.run()
 
 
