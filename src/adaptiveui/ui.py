@@ -31,12 +31,18 @@ class AdaptiveUIInfo:
     LICENSE = "GPL v3"
 
 class Images:
-    """A class containing the paths to the images used in the UI."""
+    """A class containing the paths to the images used in the UI.
+    Images must be in the PNG format and 1024 x 1024.
+    """
     ICON = resource_path("data/images/icon.png")
     WARNING = resource_path("data/images/warning.png")
     ERROR = resource_path("data/images/error.png")
     NO_ENTRY = resource_path("data/images/no_entry.png")
     SUCCESS = resource_path("data/images/success.png")
+    INFO = resource_path("data/images/info.png")
+    REFRESH = resource_path("data/images/refresh.png")
+    SYSTEM_INFO = resource_path("data/images/system_info.png")
+    SEARCH = resource_path("data/images/search.png")
 
 class Signals:
     """A class containing the socket signals used in the UI."""
@@ -516,6 +522,7 @@ class _Info:
         show_text_box: bool = True,
         add_image: str = False,
         markdown: bool = False,
+        icon_overlay: str = False,
     ):
         self.window = window
         self.text = text
@@ -529,6 +536,9 @@ class _Info:
         self.show_text_box = show_text_box
         self.add_image = add_image
         self.markdown = markdown
+        self.icon_overlay = icon_overlay if icon_overlay else (add_image if add_image else False)
+        if self.add_image:
+            self.icon_overlay = self.add_image
         
         self.button = None
         self.last_log_data = None
@@ -577,7 +587,7 @@ class _Info:
             elif self.add_image:
                 size = (400, 270)
             popup = UserInterface._create_window(
-                self.title, center=True, is_toplevel=self.window, size=size, resizable=True, icon=self.add_image if self.add_image else Images.ICON
+                self.title, center=True, is_toplevel=self.window, size=size, resizable=True, icon=self.icon_overlay if self.icon_overlay else Images.ICON
             )
             popup.bind("<Escape>", lambda _: popup.destroy())
         else:
@@ -728,10 +738,10 @@ class UserInterface:
     def _reset__temp_data(self):
         self.__temp_data: dict[str, dict | list[_Info] | bool] = {"binds": {}, "open_info_windows": [], "total_opened_windows": 0, "cp_apply_warning_given": False, "cp_custom_apply_warning_given": False, "cp_not_default_warning_given": False, "geometry_old_size": None}
     
-    def _display_info(self, message: str, title: str, extra_info: str = "", wait_var_value: bool = False, grab_input: bool = True, button_name: str = "Continue", global_grab: bool = False, scrollbar_enabled: int = 1, add_image: str = False, markdown: bool = False) -> _Info:
+    def _display_info(self, message: str, title: str, extra_info: str = "", wait_var_value: bool = False, grab_input: bool = True, button_name: str = "Continue", global_grab: bool = False, scrollbar_enabled: int = 1, add_image: str = False, markdown: bool = False, icon_overlay: str = Images.INFO) -> _Info:
         self._clean_iwindows()
         wait_var = tk.BooleanVar(value=wait_var_value)
-        info = _Info(self._window, message, title, extra_info, wait_var=wait_var, grab_input=grab_input, button_name=button_name, global_grab=global_grab, scrollbar_enabled=scrollbar_enabled, add_image=add_image, markdown=markdown)
+        info = _Info(self._window, message, title, extra_info, wait_var=wait_var, grab_input=grab_input, button_name=button_name, global_grab=global_grab, scrollbar_enabled=scrollbar_enabled, add_image=add_image, markdown=markdown, icon_overlay=icon_overlay)
         self.__temp_data["total_opened_windows"] += 1
         self.__temp_data["open_info_windows"].append(info)
         info.start()
@@ -1054,7 +1064,7 @@ class UserInterface:
         set_rc_menu(color_rc, color_rc_commands)
         set_rc_menu(custom_color_rc, custom_color_rc_commands)
 
-        self.ui_right_click.add_command(label="View AdaptiveUI Info", command=lambda: self.info(self._get_stats(), "AdaptiveUI Info"))
+        self.ui_right_click.add_command(label="View AdaptiveUI Info", command=lambda: self.info(self._get_stats(), "AdaptiveUI Info", image=Images.SYSTEM_INFO))
         # self.ui_right_click.add_command(label="Switch UI Theme", command=self.toggle_theme, state="disabled")        
         self.ui_right_click.add_cascade(label="Predefined ColorPalettes", menu=self.predefined_color_rc)
         self.ui_right_click.add_cascade(label="Custom ColorPalettes", menu=custom_color_rc)
@@ -1137,11 +1147,11 @@ class UserInterface:
         lsettings.dark_mode = self._dark_mode
         lsettings.write(f"Toggle theme to {'dark' if self._dark_mode else 'light'}")
     
-    def info(self, message: str, title: str = BuildConfigs.NAME, extra_info: str = "", scrollbar_enabled: int = 1, image: str = False):
+    def info(self, message: str, title: str = BuildConfigs.NAME, extra_info: str = "", scrollbar_enabled: int = 1, image: str = False, icon_overlay: str = Images.INFO):
         if not title == BuildConfigs.NAME:
             title = f"{BuildConfigs.NAME} - {title}"
         logger.debug(f"Displaying info popup window...")
-        self._display_info(message, title, extra_info, scrollbar_enabled=scrollbar_enabled, add_image=image)
+        self._display_info(message, title, extra_info, scrollbar_enabled=scrollbar_enabled, add_image=image, icon_overlay=icon_overlay)
     
     def warning(self, message: str, title: str = BuildConfigs.NAME, extra_info: str = "", scrollbar_enabled: int = 1, image: str = Images.WARNING):
         self.info(message, title, extra_info, scrollbar_enabled, image)
