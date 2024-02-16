@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass, field
 from tkinter.messagebox import showerror, showwarning
 
 from .log import logger
-from .toggle_var import API, ToggleVar
+from .toggle_var import ToggleVar
 
 _LOCAL_SETTINGS_W_ENABLED = (True, "")  # Local Settings write enabled
 _LOCAL_SETTINGS_VERSION = 1  # Current version of local settings
@@ -19,7 +19,6 @@ LS_REMOVE_SAFE_FLAG = "Remove safe exit flag"
 # BUILD Configs (should not be changed during runtime - with exceptions)
 class BuildConfigs:
     NAME = "AdaptiveUI"
-    DEBUG = True
     APP_PATH = (
         f"{os.path.expanduser('~')}/AppData/Local/Programs/AdaptiveUI"
         if os.name == "nt"
@@ -122,9 +121,6 @@ class ColorPalette:
 
 class MagicNumbers:
     "A magic number is a numeric literal that is used in the code without any explanation of its meaning (even I don't know why)."
-    HF_STEP_MULTIPLIER = 400
-    HF_PROGRESS_STEP = 0.529
-
     UI_CS_WINDOW_HEIGHT = 10  # At least its my size for my display
 
 
@@ -143,14 +139,6 @@ class _LocalSettings:
     _version: int = _LOCAL_SETTINGS_VERSION
 
     dark_mode: bool = True
-    last_username: str = None
-
-    # 0 = disabled, 1 = enabled, 2 = Not asked
-    auto_login_enabled: int = 2
-    auto_login_username: str = None
-    auto_login_password: str = None
-
-    safe_exit: bool = False  # check if the last exit was safe / complete (not crashed)
 
     selected_colorpalette: str = "defaults, White on Dark Grey"
     saved_colorpalettes: dict[str, list[str, str]] = field(default_factory=dict)

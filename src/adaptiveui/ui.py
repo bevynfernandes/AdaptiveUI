@@ -423,7 +423,6 @@ class Tools:
         command,
         ret: bool = False,
         window: CustomTk | tk.Toplevel = False,
-        pady=0,
         bind_return: bool = True,
     ) -> ttk.Button:
         btn = ttk.Button(window, text=label, command=command, style=AdaptiveUIConfigs.BUTTON_TYPE)
