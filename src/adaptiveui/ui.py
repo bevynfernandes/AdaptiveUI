@@ -1,4 +1,4 @@
-# AdaptiveUI - My custom UI warpper for tkinter
+# AdaptiveUI - My custom UI wrapper for tkinter
 
 import colorsys
 import ctypes
@@ -1008,6 +1008,7 @@ class UserInterface:
 
         test_rc_commands = [
             ("Perform UI Lockout", self.grab_test),
+            ("View Log Window", self.view_log_window),
             SEPARATOR,
             ("View '__temp_data'", lambda: self.info(pformat(self.__temp_data), "AdaptiveUI - __temp_data")),
             ("Reset '__temp_data'", self._reset__temp_data),
@@ -1111,11 +1112,14 @@ class UserInterface:
         self._window.update()
     
     def _get_open_iwindows(self) -> Iterator[_Info]:
+        windows_to_remove = []
         for window in self.__temp_data["open_info_windows"]:
             if window.popup.winfo_exists():
                 yield window
             else:
-                self.__temp_data["open_info_windows"].remove(window)
+                windows_to_remove.append(window)
+        for window in windows_to_remove:
+            self.__temp_data["open_info_windows"].remove(window)
     
     def _clean_iwindows(self):
         for window in self._get_open_iwindows():

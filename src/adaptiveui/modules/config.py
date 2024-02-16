@@ -197,7 +197,7 @@ class LocalSettings:
                         logger.error(error)
                 else:
                     return _LocalSettings(**lsettings)
-            except (json.JSONDecodeError, KeyError) as e:
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
                 logger.error(f"Failed to read local settings: {e}")
                 error = "Failed to read local settings. Settings have been reset."
 

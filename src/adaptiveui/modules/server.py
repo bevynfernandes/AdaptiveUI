@@ -99,7 +99,7 @@ class SocketServer:
         """
         self.signals[signal] = (function, function_params)
 
-    def _get_metadata(self, request_id: str = None):
+    def _get_metadata(self, request_id: str = None) -> dict:
         """
         Retrieves the metadata for a request.
 
