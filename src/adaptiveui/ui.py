@@ -189,31 +189,54 @@ def color_title_bar(window: tk.Tk, dark: bool = True):
     # Some odd trick to make sure it applies
     window.geometry(str(window.winfo_width()+1) + "x" + str(window.winfo_height()+1))
     window.geometry(str(window.winfo_width()-1) + "x" + str(window.winfo_height()-1))
+    
+class ExitAnimation:
+    current = None
 
-def exit_animation(root: tk.Tk):
-    """
-    Performs an exit animation for the root window.
+    @staticmethod
+    def _perform_animation(root: tk.Tk, animation_func):
+        """
+        Performs an exit animation for the root window.
 
-    If the exit animation is enabled, the function gradually decreases the alpha value of the root window
-    to create a fade-out effect. After the animation is complete, the root window is destroyed.
+        Parameters:
+          root (tk.Tk): The root window to perform the exit animation on.
+          animation_func (function): The animation function to perform.
 
-    Parameters:
-      root (tk.Tk): The root window to perform the exit animation on.
-
-    """
-    if not AdaptiveUIConfigs.EXIT_ANIMATION_ENABLED:
+        """
+        if not AdaptiveUIConfigs.EXIT_ANIMATION_ENABLED:
+            root.destroy()
+            return
+        try:
+            animation_func(root)
+        except tk.TclError as e:
+            print(f"Error during exit animation: {e}")
+            pass
         root.destroy()
-        return
-    try:
-        for i in range(20):
-            root.attributes(
-                "-alpha", 1.0 - i * 0.05
-            )  # Gradually decrease the alpha value
-            root.update()
-            sleep(0.005)
-    except tk.TclError:
-        pass
-    root.destroy()
+
+    @classmethod
+    def fade(cls, root: tk.Tk):
+        def animation(root):
+            for i in range(20):
+                root.attributes("-alpha", 1.0 - i * 0.05)
+                root.update()
+                sleep(0.005)
+
+        cls._perform_animation(root, animation)
+
+    @classmethod
+    def slide_out(cls, root: tk.Tk):
+        def animation(root):
+            for i in range(100):
+                x = root.winfo_x()
+                y = root.winfo_y()
+                new_x = x + i * 10
+                root.geometry(f"+{new_x}+{y}")
+                root.update()
+                sleep(0.005)
+
+        cls._perform_animation(root, animation)
+
+ExitAnimation.current = ExitAnimation.fade
 
 class MarkdownText(tk.Text):
     def __init__(self, *args, **kwargs):
@@ -578,7 +601,7 @@ class _Info:
     def cont(self, *args):
         if not self.set_window:
             self.f.focus() # Removes white border around button when closing
-            exit_animation(self.popup)
+            ExitAnimation.current(self.popup)
         self.wait_var.set(True)
 
     def start(self):
@@ -615,7 +638,7 @@ class _Info:
             popup = UserInterface._create_window(
                 self.title, center=True, is_toplevel=self.window, size=size, resizable=True, icon=self.icon_overlay if self.icon_overlay else Images.ICON
             )
-            popup.bind("<Escape>", lambda _: exit_animation(popup))
+            popup.bind("<Escape>", lambda _: ExitAnimation.current(popup))
         else:
             popup = self.window
             popup.clear()
@@ -1213,7 +1236,7 @@ class UserInterface:
             icon = tk.PhotoImage(file=icon)
         window.iconphoto(False, icon)
         window.attributes("-alpha", 0.95)
-        window.protocol("WM_DELETE_WINDOW", lambda: exit_animation(window))
+        window.protocol("WM_DELETE_WINDOW", lambda: ExitAnimation.current(window))
         dpi_fix()
         if center:
             Tools.center_window(window, size, False)
