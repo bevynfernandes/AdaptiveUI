@@ -249,7 +249,7 @@ class ExitAnimation:
     def slide_down(cls, root: tk.Tk):
         cls._slide(root, dy=10)
         
-class StartAnimation:
+class StartupAnimation:
     current = None
     sleep_time = 0.005
 
@@ -275,7 +275,7 @@ class StartAnimation:
         cls._perform_animation(window, animation)
 
 ExitAnimation.current = ExitAnimation.fade_out
-StartAnimation.current = StartAnimation.fade_in
+StartupAnimation.current = StartupAnimation.fade_in
 
 class MarkdownText(tk.Text):
     def __init__(self, *args, **kwargs):
@@ -657,7 +657,7 @@ class _Info:
         if isinstance(self.text, StringIO):
             self.update_log()
         elif self.grab_input and AdaptiveUIConfigs.INFO_GRAB_INPUT_ENABLED:
-            self.popup.after(0, StartAnimation.current, self.popup)
+            self.popup.after(0, StartupAnimation.current, self.popup)
             self.popup.lift()
             self.popup.focus_force()
             self.popup.transient(self.window)
@@ -1295,5 +1295,5 @@ class UserInterface:
     def run(self):
         self.set_color(ColorPalette.bg, ColorPalette.fg, force_apply=True)
         self.running = True
-        self._window.after(0, StartAnimation.current, self._window)
+        self._window.after(0, StartupAnimation.current, self._window)
         self._window.mainloop()
