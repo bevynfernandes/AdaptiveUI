@@ -4,6 +4,7 @@ import colorsys
 import ctypes
 import os
 import re
+from time import sleep
 import tkinter as tk
 import tkinter.font as tkfont
 from io import StringIO
@@ -18,12 +19,11 @@ from PIL import Image, ImageTk
 
 from .modules.config import *
 from .modules.exceptions import UIUnbindError
-from .modules.log import logger
+from .modules.log import logger, history
 from .modules.server import SocketClient, SocketServer
 from .modules.utils import SEPARATOR, resource_path
 
 DPI_FIX_DONE = False
-CustomTk = tk.Tk # Allows the user to use their own Tk class
 
 class AdaptiveUIInfo:
     VERSION = "1.2.0"
@@ -157,7 +157,7 @@ def set_rc_menu(rc_menu: tk.Menu, items: list[tuple[str]]):
         else:
             rc_menu.add_command(label=label, command=command, background=ColorPalette.bg, foreground=ColorPalette.fg, activebackground=darken_color(ColorPalette.bg), activeforeground=lighten_color(ColorPalette.fg))
 
-def color_title_bar(window: CustomTk, dark: bool = True):
+def color_title_bar(window: tk.Tk, dark: bool = True):
     """
     Sets the color of the title bar of the specified window to dark or light.
 
@@ -189,6 +189,31 @@ def color_title_bar(window: CustomTk, dark: bool = True):
     # Some odd trick to make sure it applies
     window.geometry(str(window.winfo_width()+1) + "x" + str(window.winfo_height()+1))
     window.geometry(str(window.winfo_width()-1) + "x" + str(window.winfo_height()-1))
+
+def exit_animation(root: tk.Tk):
+    """
+    Performs an exit animation for the root window.
+
+    If the exit animation is enabled, the function gradually decreases the alpha value of the root window
+    to create a fade-out effect. After the animation is complete, the root window is destroyed.
+
+    Parameters:
+      root (tk.Tk): The root window to perform the exit animation on.
+
+    """
+    if not AdaptiveUIConfigs.EXIT_ANIMATION_ENABLED:
+        root.destroy()
+        return
+    try:
+        for i in range(20):
+            root.attributes(
+                "-alpha", 1.0 - i * 0.05
+            )  # Gradually decrease the alpha value
+            root.update()
+            sleep(0.005)
+    except tk.TclError:
+        pass
+    root.destroy()
 
 class MarkdownText(tk.Text):
     def __init__(self, *args, **kwargs):
@@ -317,15 +342,15 @@ class StyleManager:
         )
         
         widgets = ('TButton', 'TButton.label', 'TLabel', 'TEntry', 'Horizontal.TProgressbar',
-                   'Vertical.TScrollbar', 'TSeparator', 'TFrame', 'Treeview')
+                   'Vertical.TScrollbar', 'TSeparator', 'TFrame', 'Treeview', 'TCheckbutton')
         for widget in widgets:
             self.style.configure(widget, background=bg, foreground=fg)
 
 class Tools:
     @staticmethod
     def center_window(
-        window: CustomTk | tk.Toplevel, size: list = None, simple: bool = True
-    ) -> CustomTk | tk.Toplevel:
+        window: tk.Tk | tk.Toplevel, size: list = None, simple: bool = True
+    ) -> tk.Tk | tk.Toplevel:
         """
         Centers the specified window on the screen.
 
@@ -376,7 +401,7 @@ class Tools:
         width: int = 40,
         font: tuple = (Configs.FONT, Configs.FONT_SIZE[0]),
         borderwidth: int = 0,
-        window: CustomTk | tk.Toplevel = None,
+        window: tk.Tk | tk.Toplevel = None,
         markdown: bool = False,
     ) -> tk.Text:
         """
@@ -422,14 +447,13 @@ class Tools:
         label: str,
         command,
         ret: bool = False,
-        window: CustomTk | tk.Toplevel = False,
+        window: tk.Tk | tk.Toplevel = False,
         bind_return: bool = True,
     ) -> ttk.Button:
         btn = ttk.Button(window, text=label, command=command, style=AdaptiveUIConfigs.BUTTON_TYPE)
         if bind_return:
             btn.bind("<Return>", lambda _: command())
-        if ret:
-            return btn
+        return btn
 
 class SharedFrame(ttk.Frame):
     """A class representing a shared frame.
@@ -455,7 +479,7 @@ class SharedFrame(ttk.Frame):
         loading: Displays a loading screen.
 
     """
-    def __init__(self, parent: CustomTk, *args, **kwargs):
+    def __init__(self, parent: tk.Tk, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.text = tk.StringVar()
         self.notice = tk.StringVar()
@@ -509,7 +533,7 @@ class SharedFrame(ttk.Frame):
 class _Info:
     def __init__(
         self,
-        window: CustomTk | SharedFrame,
+        window: tk.Tk | SharedFrame,
         text: str | StringIO,
         title: str = BuildConfigs.NAME,
         notice: str = "",
@@ -553,7 +577,8 @@ class _Info:
 
     def cont(self, *args):
         if not self.set_window:
-            self.popup.destroy()
+            self.f.focus() # Removes white border around button when closing
+            exit_animation(self.popup)
         self.wait_var.set(True)
 
     def start(self):
@@ -566,12 +591,14 @@ class _Info:
         if self.notice:
             self.create_notice()
         if not self.button_name is None:
-            self.create_button()
+            self.button = Tools.button(self.button_name, self.cont, window=self.f)
         if isinstance(self.text, StringIO):
             self.update_log()
         elif self.grab_input and AdaptiveUIConfigs.INFO_GRAB_INPUT_ENABLED:
             self.popup.lift()
             self.popup.focus_force()
+            self.popup.transient(self.window)
+            color_title_bar(self.popup, UserInterface._dark_mode)
             if self.global_grab:
                 self.popup.grab_set_global()
             else:
@@ -588,7 +615,7 @@ class _Info:
             popup = UserInterface._create_window(
                 self.title, center=True, is_toplevel=self.window, size=size, resizable=True, icon=self.icon_overlay if self.icon_overlay else Images.ICON
             )
-            popup.bind("<Escape>", lambda _: popup.destroy())
+            popup.bind("<Escape>", lambda _: exit_animation(popup))
         else:
             popup = self.window
             popup.clear()
@@ -635,14 +662,8 @@ class _Info:
             try:
                 self.button.place(relx=1, rely=1, x=-25 if self.scrollbar_enabled else -8, y=-8, anchor='se')
             except AttributeError:
-                self.create_button()
+                self.button = Tools.button(self.button_name, self.cont, window=self.f)
                 self.button.place(relx=1, rely=1, x=-25 if self.scrollbar_enabled else -8, y=-8, anchor='se')
-
-    def create_button(self):
-        self.button = ttk.Button(
-            self.popup, text=self.button_name, command=self.cont, style=AdaptiveUIConfigs.BUTTON_TYPE
-        )
-        self.button.bind("<Return>", self.cont)
 
     def create_notice(self):
         ttk.Label(
@@ -670,16 +691,7 @@ class UserInterface:
     _dark_mode: bool = LocalSettings.read().dark_mode
     
     def __init__(self, window_name: str, size: tuple[int, int] = None, center: bool = True, resizable: bool = False, icon: str = Images.ICON):
-        global excepthook, CustomTk
-
-        class CustomTk(tk.Tk):
-            @classmethod
-            def report_callback_exception(cls, exc: BaseException, val: BaseException, tb):
-                self._custom_traceback(exc, val, tb)
-                self.error(
-                    f"An error has occurred. Please report this to the developer.\n\n{repr(exc)}: {val}",
-                    "⚠️ Critical Error!",
-                )
+        global excepthook
         
         excepthook = self._custom_traceback
         
@@ -913,7 +925,7 @@ class UserInterface:
         if not skip_window:
             self._window.configure(background=bg_color)
 
-        if isinstance(container, (CustomTk, tk.Toplevel)):
+        if isinstance(container, (tk.Tk, tk.Toplevel)):
             container.configure(background=bg_color)
             if bg_color is not None:
                 container.option_add("*Background", bg_color)
@@ -1008,13 +1020,14 @@ class UserInterface:
 
         test_rc_commands = [
             ("Perform UI Lockout", self.grab_test),
-            ("View Log Window", self.view_log_window),
+            ("View Log Window", lambda: self.view_log_window(history)),
             SEPARATOR,
-            ("View '__temp_data'", lambda: self.info(pformat(self.__temp_data), "AdaptiveUI - __temp_data")),
+            ("View '__temp_data'", lambda: self.info(pformat(self.__temp_data), "__temp_data")),
             ("Reset '__temp_data'", self._reset__temp_data),
             ("Cleanup '__temp_data'", self._clean_iwindows),
             SEPARATOR,
             ("Toggle 'INFO_GRAB_INPUT_ENABLED'", lambda: self.toggle_var(AdaptiveUIConfigs.INFO_GRAB_INPUT_ENABLED)),
+            ("Toggle 'EXIT_ANIMATION_ENABLED'", lambda: self.toggle_var(AdaptiveUIConfigs.EXIT_ANIMATION_ENABLED)),
             SEPARATOR,
             ("info()", lambda: self.info("This is a test message.", "Test Message")),
             ("error()", lambda: self.error("This is a test error message.", "Test Error")),
@@ -1188,11 +1201,11 @@ class UserInterface:
         size: tuple[int, int] | str = None,
         icon: str = Images.ICON,
         resizable: bool = False,
-        is_toplevel: CustomTk = False,
-    ) -> CustomTk | tk.Toplevel:
+        is_toplevel: tk.Tk = False,
+    ) -> tk.Tk | tk.Toplevel:
         if size is None:
             size = [400, 200]
-        window = tk.Toplevel(is_toplevel) if is_toplevel else CustomTk()
+        window = tk.Toplevel(is_toplevel) if is_toplevel else tk.Tk()
         window.title(title)
         if icon is not Images.ICON and is_toplevel:
             icon = overlay_image(Images.ICON, icon)
@@ -1200,6 +1213,7 @@ class UserInterface:
             icon = tk.PhotoImage(file=icon)
         window.iconphoto(False, icon)
         window.attributes("-alpha", 0.95)
+        window.protocol("WM_DELETE_WINDOW", lambda: exit_animation(window))
         dpi_fix()
         if center:
             Tools.center_window(window, size, False)
