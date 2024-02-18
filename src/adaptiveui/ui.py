@@ -192,51 +192,90 @@ def color_title_bar(window: tk.Tk, dark: bool = True):
     
 class ExitAnimation:
     current = None
+    sleep_time = 0.005
 
     @staticmethod
     def _perform_animation(root: tk.Tk, animation_func):
-        """
-        Performs an exit animation for the root window.
-
-        Parameters:
-          root (tk.Tk): The root window to perform the exit animation on.
-          animation_func (function): The animation function to perform.
-
-        """
         if not AdaptiveUIConfigs.EXIT_ANIMATION_ENABLED:
             root.destroy()
             return
         try:
             animation_func(root)
-        except tk.TclError as e:
-            print(f"Error during exit animation: {e}")
+        except tk.TclError:
             pass
         root.destroy()
 
     @classmethod
-    def fade(cls, root: tk.Tk):
+    def _animate(cls, root: tk.Tk, animation_func):
         def animation(root):
-            for i in range(20):
-                root.attributes("-alpha", 1.0 - i * 0.05)
+            for i in range(100):
+                animation_func(root, i)
                 root.update()
-                sleep(0.005)
+                sleep(cls.sleep_time / 5) # / 5 otherwise its too slow
 
         cls._perform_animation(root, animation)
 
     @classmethod
-    def slide_out(cls, root: tk.Tk):
-        def animation(root):
-            for i in range(100):
-                x = root.winfo_x()
-                y = root.winfo_y()
-                new_x = x + i * 10
-                root.geometry(f"+{new_x}+{y}")
-                root.update()
-                sleep(0.005)
+    def fade_out(cls, root: tk.Tk):
+        def animation_func(root, i):
+            root.attributes("-alpha", 1.0 - i * 0.01)
 
-        cls._perform_animation(root, animation)
+        cls._animate(root, animation_func)
 
-ExitAnimation.current = ExitAnimation.fade
+    @classmethod
+    def _slide(cls, root: tk.Tk, dx=0, dy=0):
+        def animation_func(root, i):
+            x = root.winfo_x()
+            y = root.winfo_y()
+            new_x = x + i * dx
+            new_y = y + i * dy
+            root.geometry(f"+{new_x}+{new_y}")
+
+        cls._animate(root, animation_func)
+
+    @classmethod
+    def slide_right(cls, root: tk.Tk):
+        cls._slide(root, dx=10)
+
+    @classmethod
+    def slide_left(cls, root: tk.Tk):
+        cls._slide(root, dx=-10)
+
+    @classmethod
+    def slide_up(cls, root: tk.Tk):
+        cls._slide(root, dy=-10)
+
+    @classmethod
+    def slide_down(cls, root: tk.Tk):
+        cls._slide(root, dy=10)
+        
+class StartAnimation:
+    current = None
+    sleep_time = 0.005
+
+    @staticmethod
+    def _perform_animation(root: tk.Tk, animation_func):
+        if not AdaptiveUIConfigs.START_ANIMATION_ENABLED:
+            return
+        try:
+            animation_func(root)
+        except tk.TclError:
+            pass
+    
+    @classmethod
+    def fade_in(cls, window):
+        def animation(window):
+            alpha = 0.0
+            while alpha <= 0.95:
+                window.attributes('-alpha', alpha)
+                alpha += 0.01
+                sleep(cls.sleep_time / 5)
+                window.update()
+
+        cls._perform_animation(window, animation)
+
+ExitAnimation.current = ExitAnimation.fade_out
+StartAnimation.current = StartAnimation.fade_in
 
 class MarkdownText(tk.Text):
     def __init__(self, *args, **kwargs):
@@ -618,6 +657,7 @@ class _Info:
         if isinstance(self.text, StringIO):
             self.update_log()
         elif self.grab_input and AdaptiveUIConfigs.INFO_GRAB_INPUT_ENABLED:
+            self.popup.after(0, StartAnimation.current, self.popup)
             self.popup.lift()
             self.popup.focus_force()
             self.popup.transient(self.window)
@@ -897,7 +937,6 @@ class UserInterface:
 
     def set_color(self, bg_color: str, fg_color: str, skip_window: bool = False, container = None, logging_enabled: bool = True, force_apply: bool = False, no_popup: bool = False, no_socket: bool = False):
         excluded_widgets = [self.predefined_color_rc] + self._get_all_descendants(self.predefined_color_rc)
-
         if not self._dark_mode:
             self._dark_mode = True
             self.set_theme(self._dark_mode)
@@ -1229,13 +1268,14 @@ class UserInterface:
         if size is None:
             size = [400, 200]
         window = tk.Toplevel(is_toplevel) if is_toplevel else tk.Tk()
+        if AdaptiveUIConfigs.START_ANIMATION_ENABLED:
+            window.attributes('-alpha', 0.0)  # Hide the window
         window.title(title)
         if icon is not Images.ICON and is_toplevel:
             icon = overlay_image(Images.ICON, icon)
         else:
             icon = tk.PhotoImage(file=icon)
         window.iconphoto(False, icon)
-        window.attributes("-alpha", 0.95)
         window.protocol("WM_DELETE_WINDOW", lambda: ExitAnimation.current(window))
         dpi_fix()
         if center:
@@ -1255,4 +1295,5 @@ class UserInterface:
     def run(self):
         self.set_color(ColorPalette.bg, ColorPalette.fg, force_apply=True)
         self.running = True
+        self._window.after(0, StartAnimation.current, self._window)
         self._window.mainloop()

@@ -128,6 +128,7 @@ class AdaptiveUIConfigs:
     TOOLS_ENABLED = True
     INFO_GRAB_INPUT_ENABLED = ToggleVar("INFO_GRAB_INPUT_ENABLED", True)
     BUTTON_TYPE = "TButton"  # TButton or Accent.TButton
+    START_ANIMATION_ENABLED = ToggleVar("ANIMATION_ENABLED", True)
     EXIT_ANIMATION_ENABLED = ToggleVar("ANIMATION_ENABLED", True)
 
 
