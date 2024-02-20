@@ -4,13 +4,14 @@ import colorsys
 import ctypes
 import os
 import re
-from time import sleep
 import tkinter as tk
 import tkinter.font as tkfont
+from functools import lru_cache
 from io import StringIO
 from pprint import pformat
 from sys import excepthook
 from threading import Thread
+from time import sleep
 from tkinter import ttk
 from typing import Callable, Iterator
 
@@ -19,7 +20,7 @@ from PIL import Image, ImageTk
 
 from .modules.config import *
 from .modules.exceptions import UIUnbindError
-from .modules.log import logger, history
+from .modules.log import history, logger
 from .modules.server import SocketClient, SocketServer
 from .modules.utils import SEPARATOR, resource_path
 
@@ -105,6 +106,7 @@ def darken_color(color: str, factor=0.75) -> str:
     """
     return _adjust_color_brightness(color, factor)
 
+@lru_cache(maxsize=128) # Cache created images to prevent creating the same ones over and over again
 def overlay_image(original_img: str, overlay_img: str) -> ImageTk.PhotoImage:
     logger.debug(f"Overlaying '{overlay_img.split("/")[-1]}' on '{original_img.split("/")[-1]}'...")
     img = Image.open(original_img)
@@ -223,31 +225,40 @@ class ExitAnimation:
         cls._animate(root, animation_func)
 
     @classmethod
-    def _slide(cls, root: tk.Tk, dx=0, dy=0):
+    def _slide(cls, root: tk.Tk, dx=0, dy=0, fade=False):
         def animation_func(root, i):
+            # Stop the animation if the window has disappeared
+            current_alpha = root.attributes("-alpha")
+            if current_alpha <= 0:
+                return
+
             x = root.winfo_x()
             y = root.winfo_y()
             new_x = x + i * dx
             new_y = y + i * dy
             root.geometry(f"+{new_x}+{new_y}")
 
+            if fade:
+                new_alpha = 1.0 - i * 0.1
+                root.attributes("-alpha", new_alpha)
+
         cls._animate(root, animation_func)
 
     @classmethod
-    def slide_right(cls, root: tk.Tk):
-        cls._slide(root, dx=10)
+    def slide_right(cls, root: tk.Tk, fade=False):
+        cls._slide(root, dx=10, fade=fade)
 
     @classmethod
-    def slide_left(cls, root: tk.Tk):
-        cls._slide(root, dx=-10)
+    def slide_left(cls, root: tk.Tk, fade=False):
+        cls._slide(root, dx=-10, fade=fade)
 
     @classmethod
-    def slide_up(cls, root: tk.Tk):
-        cls._slide(root, dy=-10)
+    def slide_up(cls, root: tk.Tk, fade=False):
+        cls._slide(root, dy=-10, fade=fade)
 
     @classmethod
-    def slide_down(cls, root: tk.Tk):
-        cls._slide(root, dy=10)
+    def slide_down(cls, root: tk.Tk, fade=False):
+        cls._slide(root, dy=10, fade=fade)
         
 class StartupAnimation:
     current = None
@@ -255,7 +266,7 @@ class StartupAnimation:
 
     @staticmethod
     def _perform_animation(root: tk.Tk, animation_func):
-        if not AdaptiveUIConfigs.START_ANIMATION_ENABLED:
+        if not AdaptiveUIConfigs.STARTUP_ANIMATION_ENABLED:
             return
         try:
             animation_func(root)
@@ -266,7 +277,7 @@ class StartupAnimation:
     def fade_in(cls, window):
         def animation(window):
             alpha = 0.0
-            while alpha <= 0.95:
+            while alpha <= AdaptiveUIConfigs.OPACITY_LEVEL:
                 window.attributes('-alpha', alpha)
                 alpha += 0.01
                 sleep(cls.sleep_time / 5)
@@ -653,20 +664,22 @@ class _Info:
         if self.notice:
             self.create_notice()
         if not self.button_name is None:
-            self.button = Tools.button(self.button_name, self.cont, window=self.f)
+            self.button = Tools.button(self.button_name, self.cont, window=self.popup)
         if isinstance(self.text, StringIO):
             self.update_log()
         elif self.grab_input and AdaptiveUIConfigs.INFO_GRAB_INPUT_ENABLED:
-            self.popup.after(0, StartupAnimation.current, self.popup)
             self.popup.lift()
             self.popup.focus_force()
             self.popup.transient(self.window)
             color_title_bar(self.popup, UserInterface._dark_mode)
+            self.popup.after(0, StartupAnimation.current, self.popup)
             if self.global_grab:
                 self.popup.grab_set_global()
             else:
                 self.popup.grab_set()
             self.window.wait_window(self.popup)
+        else:
+            self.popup.after(0, StartupAnimation.current, self.popup)
 
     def create_popup(self):
         if not self.set_window:
@@ -676,7 +689,7 @@ class _Info:
             elif self.add_image:
                 size = (400, 270)
             popup = UserInterface._create_window(
-                self.title, center=True, is_toplevel=self.window, size=size, resizable=True, icon=self.icon_overlay if self.icon_overlay else Images.ICON
+                self.title, center=True, is_toplevel=self.window, size=size, resizable=True, icon=self.icon_overlay if self.icon_overlay else Images.ICON, animation=False if isinstance(self.text, StringIO) else True
             )
             popup.bind("<Escape>", lambda _: ExitAnimation.current(popup))
         else:
@@ -725,7 +738,7 @@ class _Info:
             try:
                 self.button.place(relx=1, rely=1, x=-25 if self.scrollbar_enabled else -8, y=-8, anchor='se')
             except AttributeError:
-                self.button = Tools.button(self.button_name, self.cont, window=self.f)
+                self.button = Tools.button(self.button_name, self.cont, window=self.popup)
                 self.button.place(relx=1, rely=1, x=-25 if self.scrollbar_enabled else -8, y=-8, anchor='se')
 
     def create_notice(self):
@@ -776,9 +789,9 @@ class UserInterface:
             Signals.ERROR_OCCURRED: (self._socket_error_detected, {"message": ""}),
             Signals.LOCK_UI: (self.grab_test, {}),
             Signals.UNLOCK_UI: (lambda: self.__temp_data["open_info_windows"][-1].popup.destroy(), {})
-        }, requires={"version": AdaptiveUIInfo.VERSION})
+        }, requires={"aui_version": AdaptiveUIInfo.VERSION})
         self.socket_server.attach_metadata(self._gen_socket_metadata)
-        self.socket_client = SocketClient(requires={"version": AdaptiveUIInfo.VERSION})
+        self.socket_client = SocketClient(requires={"aui_version": AdaptiveUIInfo.VERSION})
 
         self._color_palette_history_window = False
         self.running = False
@@ -919,6 +932,19 @@ class UserInterface:
             f"{var.name}: {var.pp_get()}",
             "DEBUG Menu",
         )
+    
+    def _toggle_transparency_effects(self):
+        if AdaptiveUIConfigs.OPACITY_LEVEL == 1:
+            AdaptiveUIConfigs.OPACITY_LEVEL = AdaptiveUIConfigs._DEFAULT_OPACITY_LEVEL
+            self._window.attributes("-alpha", AdaptiveUIConfigs.OPACITY_LEVEL)
+            for info_window in self._get_open_iwindows():
+                info_window.popup.attributes("-alpha", AdaptiveUIConfigs.OPACITY_LEVEL)
+        else:
+            AdaptiveUIConfigs.OPACITY_LEVEL = 1
+            self._window.attributes("-alpha", AdaptiveUIConfigs.OPACITY_LEVEL)
+            for info_window in self._get_open_iwindows():
+                info_window.popup.attributes("-alpha", AdaptiveUIConfigs.OPACITY_LEVEL)
+        logger.debug(f"Set Transparency Effects to {AdaptiveUIConfigs.OPACITY_LEVEL}")
 
     def randomise_color_palette(self):
         logger.debug("Randomising color palette...")
@@ -1090,6 +1116,8 @@ class UserInterface:
             SEPARATOR,
             ("Toggle 'INFO_GRAB_INPUT_ENABLED'", lambda: self.toggle_var(AdaptiveUIConfigs.INFO_GRAB_INPUT_ENABLED)),
             ("Toggle 'EXIT_ANIMATION_ENABLED'", lambda: self.toggle_var(AdaptiveUIConfigs.EXIT_ANIMATION_ENABLED)),
+            ("Toggle 'STARTUP_ANIMATION_ENABLED'", lambda: self.toggle_var(AdaptiveUIConfigs.STARTUP_ANIMATION_ENABLED)),
+            ("Toggle Transpancy Effects", self._toggle_transparency_effects),
             SEPARATOR,
             ("info()", lambda: self.info("This is a test message.", "Test Message")),
             ("error()", lambda: self.error("This is a test error message.", "Test Error")),
@@ -1193,8 +1221,13 @@ class UserInterface:
                 yield window
             else:
                 windows_to_remove.append(window)
+        
         for window in windows_to_remove:
-            self.__temp_data["open_info_windows"].remove(window)
+            logger.debug(f"Removing closed window '{window.title}' from open_info_windows...")
+            if window in self.__temp_data["open_info_windows"]:
+                self.__temp_data["open_info_windows"].remove(window)
+            else:
+                logger.warning(f"Window '{window.title}' not found in open_info_windows!")
     
     def _clean_iwindows(self):
         for window in self._get_open_iwindows():
@@ -1264,11 +1297,12 @@ class UserInterface:
         icon: str = Images.ICON,
         resizable: bool = False,
         is_toplevel: tk.Tk = False,
+        animation: bool = False,
     ) -> tk.Tk | tk.Toplevel:
         if size is None:
             size = [400, 200]
         window = tk.Toplevel(is_toplevel) if is_toplevel else tk.Tk()
-        if AdaptiveUIConfigs.START_ANIMATION_ENABLED:
+        if AdaptiveUIConfigs.STARTUP_ANIMATION_ENABLED and animation and AdaptiveUIConfigs.OPACITY_LEVEL > 0.0:
             window.attributes('-alpha', 0.0)  # Hide the window
         window.title(title)
         if icon is not Images.ICON and is_toplevel:
