@@ -415,7 +415,7 @@ class StyleManager:
         )
         
         widgets = ('TButton', 'TButton.label', 'TLabel', 'TEntry', 'Horizontal.TProgressbar',
-                   'Vertical.TScrollbar', 'TSeparator', 'TFrame', 'Treeview', 'TCheckbutton')
+                   'Vertical.TScrollbar', 'TSeparator', 'TFrame', 'Treeview', 'TCheckbutton', 'TCombobox')
         for widget in widgets:
             self.style.configure(widget, background=bg, foreground=fg)
 
